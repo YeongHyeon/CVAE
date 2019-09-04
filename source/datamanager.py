@@ -20,7 +20,6 @@ class Dataset(object):
         self.num_tr, self.num_te = self.x_tr.shape[0], self.x_te.shape[0]
         self.idx_tr, self.idx_te = 0, 0
 
-        print(type(self.x_tr[0][0][0]))
         print("Number of data\nTraining: %d, Test: %d\n" %(self.num_tr, self.num_te))
 
         x_sample, y_sample = self.x_te[0], self.y_te[0]
