@@ -15,7 +15,7 @@ def gaussian_sample(batch_size, z_dim, mean=0, sigma=1):
 
     return np.random.normal(loc=mean, scale=sigma, size=(batch_size, z_dim)).astype(np.float32)
 
-def dat2canva(data, scale=1):
+def dat2canva(data):
 
     numd = math.ceil(np.sqrt(data.shape[0]))
     [dn, dh, dw, dc] = data.shape
@@ -25,7 +25,7 @@ def dat2canva(data, scale=1):
         for x in range(numd):
             try: tmp = data[x+(y*numd)]
             except: pass
-            else: canvas[(y*dh):(y*dh)+28, (x*dw):(x*dw)+28, :] = (tmp * scale)
+            else: canvas[(y*dh):(y*dh)+28, (x*dw):(x*dw)+28, :] = tmp
     if(dc == 1):
         canvas_rgb = np.ones((dh*numd, dw*numd, 3)).astype(np.float32)
         canvas_rgb[:, :, 0] = canvas[:, :, 0]
@@ -35,18 +35,18 @@ def dat2canva(data, scale=1):
 
     return canvas
 
-def save_img(input, restore, recon, scale=1, savename=""):
+def save_img(input, restore, recon, savename=""):
 
     plt.figure(figsize=(10, 4))
     plt.subplot(131)
     plt.title("Input\n(x)")
-    plt.imshow(dat2canva(data=input, scale=1))
+    plt.imshow(dat2canva(data=input))
     plt.subplot(132)
     plt.title("Restoration\n(x to x-hat)")
-    plt.imshow(dat2canva(data=restore, scale=1))
+    plt.imshow(dat2canva(data=restore))
     plt.subplot(133)
     plt.title("Reconstruction\n(z to x-hat)")
-    plt.imshow(dat2canva(data=recon, scale=1))
+    plt.imshow(dat2canva(data=recon))
     plt.tight_layout()
     plt.savefig(savename)
     plt.close()
@@ -74,9 +74,6 @@ def training(sess, saver, neuralnet, dataset, epochs, batch_size, normalize=True
 
     print("\nTraining to %d epochs (%d of minibatch size)" %(epochs, batch_size))
 
-    if(normalize): scale = dataset.max_val
-    else: scale = 1
-
     summary_writer = tf.compat.v1.summary.FileWriter(PACK_PATH+'/Checkpoint', sess.graph)
 
     make_dir(path="tr_resotring")
@@ -97,11 +94,15 @@ def training(sess, saver, neuralnet, dataset, epochs, batch_size, normalize=True
         z_sample = gaussian_sample(mean=0, sigma=1, batch_size=batch_size, z_dim=neuralnet.z_dim)
         x_restore1, x_sample1 = sess.run([neuralnet.x_hat, neuralnet.x_sample], \
             feed_dict={neuralnet.x:x_dump, neuralnet.z:z_sample})
-        save_img(input=x_dump, restore=x_restore1, recon=x_sample1, scale=scale, savename=os.path.join("tr_sampling", "%08d.png" %(epoch)))
+        save_img(input=x_dump, restore=x_restore1, recon=x_sample1, \
+            savename=os.path.join("tr_sampling", "%08d.png" %(epoch)))
 
-        x_restore2, x_sample2, z_mu = sess.run([neuralnet.x_hat, neuralnet.x_sample, neuralnet.z_mu], \
-            feed_dict={neuralnet.x:x_tr, neuralnet.z:z_sample})
-        save_img(input=x_tr, restore=x_restore2, recon=x_sample2, scale=scale, savename=os.path.join("tr_resotring", "%08d.png" %(epoch)))
+        z_mu = sess.run(neuralnet.z_mu, \
+            feed_dict={neuralnet.x:x_tr})
+        x_restore2, x_sample2 = sess.run([neuralnet.x_hat, neuralnet.x_sample], \
+            feed_dict={neuralnet.x:x_tr, neuralnet.z:z_mu})
+        save_img(input=x_tr, restore=x_restore2, recon=x_sample2, \
+            savename=os.path.join("tr_resotring", "%08d.png" %(epoch)))
 
         latent_plot(z_mu=z_mu, y=y_tr, n=dataset.num_class, savename=os.path.join("tr_latent", "%08d.png" %(epoch)))
 
