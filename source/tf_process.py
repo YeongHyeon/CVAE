@@ -52,21 +52,18 @@ def save_img(input, restore, recon, scale=1, savename=""):
     plt.close()
 
 def discrete_cmap(N, base_cmap=None):
-    """Create an N-bin discrete colormap from the specified input map"""
-
-    # Note that if base_cmap is a string or None, you can simply do
-    #    return plt.cm.get_cmap(base_cmap, N)
-    # The following works for string, None, or a colormap instance:
 
     base = plt.cm.get_cmap(base_cmap)
     color_list = base(np.linspace(0, 1, N))
     cmap_name = base.name + str(N)
+
     return base.from_list(cmap_name, color_list, N)
 
 def latent_plot(z_mu, y, n, savename=""):
 
     plt.figure(figsize=(6, 5))
-    plt.scatter(z_mu[:, 0], z_mu[:, 1], c=y, marker='o', edgecolor='none', cmap=discrete_cmap(n, 'jet'))
+    plt.scatter(z_mu[:, 0], z_mu[:, 1], c=y, \
+        marker='o', edgecolor='none', cmap=discrete_cmap(n, 'jet'))
     plt.colorbar(ticks=range(n))
     plt.grid()
     plt.tight_layout()
@@ -98,13 +95,13 @@ def training(sess, saver, neuralnet, dataset, epochs, batch_size, normalize=True
 
         x_dump = np.zeros((batch_size, neuralnet.height, neuralnet.width, neuralnet.channel)).astype(np.float32)
         z_sample = gaussian_sample(mean=0, sigma=1, batch_size=batch_size, z_dim=neuralnet.z_dim)
-        x_restore, x_sample = sess.run([neuralnet.x_hat, neuralnet.x_sample], \
+        x_restore1, x_sample1 = sess.run([neuralnet.x_hat, neuralnet.x_sample], \
             feed_dict={neuralnet.x:x_dump, neuralnet.z:z_sample})
-        save_img(input=x_dump, restore=x_restore, recon=x_sample, scale=scale, savename=os.path.join("tr_sampling", "%08d.png" %(epoch)))
+        save_img(input=x_dump, restore=x_restore1, recon=x_sample1, scale=scale, savename=os.path.join("tr_sampling", "%08d.png" %(epoch)))
 
-        x_restore, x_sample, z_mu = sess.run([neuralnet.x_hat, neuralnet.x_sample, neuralnet.z_mu], \
+        x_restore2, x_sample2, z_mu = sess.run([neuralnet.x_hat, neuralnet.x_sample, neuralnet.z_mu], \
             feed_dict={neuralnet.x:x_tr, neuralnet.z:z_sample})
-        save_img(input=x_tr, restore=x_restore, recon=x_sample, scale=scale, savename=os.path.join("tr_resotring", "%08d.png" %(epoch)))
+        save_img(input=x_tr, restore=x_restore2, recon=x_sample2, scale=scale, savename=os.path.join("tr_resotring", "%08d.png" %(epoch)))
 
         latent_plot(z_mu=z_mu, y=y_tr, n=dataset.num_class, savename=os.path.join("tr_latent", "%08d.png" %(epoch)))
 

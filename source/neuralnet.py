@@ -17,7 +17,7 @@ class CVAE(object):
         self.fc_shapes, self.conv_shapes = [], []
 
         self.x_hat, self.logit, self.z_mu, self.z_sigma, self.x_sample = \
-            self.build_model(input=self.x, sample=self.z, ksize=self.k_size)
+            self.build_model(input=self.x, random_z=self.z, ksize=self.k_size)
 
         # self.restore_error = tf.reduce_sum(tf.square(self.logit - self.x), axis=(1, 2, 3))
         self.restore_error = tf.reduce_sum(tf.nn.sigmoid_cross_entropy_with_logits(logits=self.logit, labels=self.x), axis=(1, 2, 3))
@@ -37,7 +37,7 @@ class CVAE(object):
         tf.compat.v1.summary.scalar('total loss', self.loss)
         self.summaries = tf.compat.v1.summary.merge_all()
 
-    def build_model(self, input, sample, ksize=3):
+    def build_model(self, input, random_z, ksize=3):
 
         # with tf.compat.v1.variable_scope("encode_var"):
         with tf.name_scope('encoder') as scope_enc:
@@ -47,7 +47,7 @@ class CVAE(object):
         with tf.name_scope('decoder') as scope_enc:
             logit = self.decoder(input=z_enc, ksize=ksize)
             x_hat = tf.compat.v1.nn.sigmoid(logit)
-            x_sample = tf.compat.v1.nn.sigmoid(self.decoder(input=sample, ksize=ksize))
+            x_sample = tf.compat.v1.nn.sigmoid(self.decoder(input=random_z, ksize=ksize))
 
         return x_hat, logit, z_mu, z_sigma, x_sample
 

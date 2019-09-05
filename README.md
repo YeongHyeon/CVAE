@@ -12,9 +12,9 @@ Implementation of CVAE
 ## Environment
 * Python 3.7.4  
 * Tensorflow 1.14.0  
-* Numpy 1.17.1
-* Matplotlib 3.1.1
-* Scikit Learn (sklearn) 0.21.3
+* Numpy 1.17.1  
+* Matplotlib 3.1.1  
+* Scikit Learn (sklearn) 0.21.3  
 
 ## Reference
 [1] Kingma, D. P., & Welling, M. (2013). <a href="https://arxiv.org/abs/1312.6114">Auto-encoding variational bayes</a>. arXiv preprint arXiv:1312.6114.  
