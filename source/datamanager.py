@@ -1,6 +1,8 @@
 import numpy as np
 import tensorflow as tf
 
+from sklearn.utils import shuffle
+
 class Dataset(object):
 
     def __init__(self, normalize=True):
@@ -37,6 +39,8 @@ class Dataset(object):
         print("Normalization: %r" %(self.normalize))
         if(self.normalize): print("(from %.3f-%.3f to %.3f-%.3f)" %(self.min_val, self.max_val, 0, 1))
 
+    def reset_idx(self): self.idx_tr, self.idx_te = 0, 0
+
     def next_train(self, batch_size=1):
 
         start, end = self.idx_tr, self.idx_tr+batch_size
@@ -48,9 +52,11 @@ class Dataset(object):
         if(end >= self.num_tr):
             terminator = True
             self.idx_tr = 0
+            self.x_tr, self.y_tr = shuffle(self.x_tr, self.y_tr)
         else: self.idx_tr = end
 
-        return x_tr, y_tr, terminator
+        if(x_tr.shape[0] != batch_size): return None, None, terminator
+        else: return x_tr, y_tr, terminator
 
     def next_test(self, batch_size=1):
 

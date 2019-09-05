@@ -16,22 +16,21 @@ class CVAE(object):
         self.w_names, self.b_names = [], []
         self.fc_shapes, self.conv_shapes = [], []
 
-        self.x_hat, self.z_mu, self.z_sigma, self.x_sample = \
+        self.x_hat, self.logit, self.z_mu, self.z_sigma, self.x_sample = \
             self.build_model(input=self.x, sample=self.z, ksize=self.k_size)
 
-        # self.restore_error = tf.reduce_sum(tf.nn.sigmoid_cross_entropy_with_logits(labels=self.x, logits=self.x_hat), axis=(1, 2, 3))
-        self.restore_error = tf.reduce_sum(tf.square(self.x-self.x_hat), axis=(1, 2, 3))
-
-        self.kl_divergence = 0.5 * tf.reduce_sum(tf.square(self.z_mu) + tf.square(self.z_sigma) - tf.math.log(1e-8 + tf.square(self.z_sigma)) - 1, axis=(1))
-
-
+        # self.restore_error = tf.reduce_sum(tf.square(self.logit - self.x), axis=(1, 2, 3))
+        self.restore_error = tf.reduce_sum(tf.nn.sigmoid_cross_entropy_with_logits(logits=self.logit, labels=self.x), axis=(1, 2, 3))
+        self.kl_divergence = 0.5 * tf.reduce_sum(tf.square(self.z_mu) + tf.square(self.z_sigma) - tf.math.log(1e-12 + tf.square(self.z_sigma)) - 1, axis=(1))
 
         self.mean_restore = tf.reduce_mean(self.restore_error)
         self.mean_kld = tf.reduce_mean(self.kl_divergence)
-        self.ELBO = tf.reduce_mean(self.kl_divergence + self.restore_error) # Evidence LowerBOund
+        self.ELBO = tf.reduce_mean(self.restore_error + self.kl_divergence) # Evidence LowerBOund
         self.loss = self.ELBO
 
-        self.optimizer = tf.compat.v1.train.AdamOptimizer(self.leaning_rate).minimize(self.loss)
+        #default: beta1=0.9, beta2=0.999
+        self.optimizer = tf.compat.v1.train.AdamOptimizer( \
+            self.leaning_rate, beta1=0.9, beta2=0.999).minimize(self.loss)
 
         tf.compat.v1.summary.scalar('restore_error', self.mean_restore)
         tf.compat.v1.summary.scalar('kl_divergence', self.mean_kld)
@@ -46,14 +45,13 @@ class CVAE(object):
 
         # with tf.compat.v1.variable_scope("decode_var", reuse=tf.compat.v1.AUTO_REUSE):
         with tf.name_scope('decoder') as scope_enc:
-            x_hat = self.decoder(input=z_enc, ksize=ksize)
-            x_sample = self.decoder(input=sample, ksize=ksize)
+            logit = self.decoder(input=z_enc, ksize=ksize)
+            x_hat = tf.compat.v1.nn.sigmoid(logit)
+            x_sample = tf.compat.v1.nn.sigmoid(self.decoder(input=sample, ksize=ksize))
 
-        return x_hat, z_mu, z_sigma, x_sample
+        return x_hat, logit, z_mu, z_sigma, x_sample
 
     def encoder(self, input, ksize=3):
-
-        # with tf.name_scope('encoder') as scope_enc:
 
         print("Encode-1")
         conv1_1 = self.conv2d(input=input, stride=1, padding='SAME', \
@@ -96,8 +94,6 @@ class CVAE(object):
 
     def decoder(self, input, ksize=3):
 
-        # with tf.name_scope('decoder') as scope_dec:
-
         print("Decode-Dense")
         [n, h, w, c] = self.fc_shapes[0]
         fulcon2 = self.fully_connected(input=input, num_inputs=int(self.z_dim), \
@@ -129,12 +125,12 @@ class CVAE(object):
         convt3_3 = self.conv2d(input=convt3_2, stride=1, padding='SAME', \
             filter_size=[ksize, ksize, 16, 1], activation="None", name="convt3_3")
 
-        convt3_3 = tf.clip_by_value(convt3_3, 1e-12, 1-1e-12)
-
         return convt3_3
 
     def sample_z(self, mu, sigma):
-        epsilon = tf.random.normal(tf.shape(mu), 0, 1, dtype=tf.float32)
+
+        # default of tf.random.normal: mean=0.0, stddev=1.0
+        epsilon = tf.random.normal(tf.shape(mu), dtype=tf.float32)
         sample = mu + (sigma * epsilon)
         return sample
 
@@ -195,7 +191,7 @@ class CVAE(object):
         out_bias = tf.math.add(out_conv, bias, name='%s_add' %(name))
 
         print("Conv", input.shape, "->", out_bias.shape)
-        return self.activation_fn(input=out_bias, activation="relu", name=name)
+        return self.activation_fn(input=out_bias, activation=activation, name=name)
 
     def conv2d_transpose(self, input, stride, padding, output_shape, \
         filter_size=[3, 3, 16, 32], dilations=[1, 1, 1, 1], activation="relu", name=""):
@@ -235,7 +231,7 @@ class CVAE(object):
         out_bias = tf.math.add(out_conv, bias, name='%s_add' %(name))
 
         print("Conv-Tr", input.shape, "->", out_bias.shape)
-        return self.activation_fn(input=out_bias, activation="relu", name=name)
+        return self.activation_fn(input=out_bias, activation=activation, name=name)
 
     def fully_connected(self, input, num_inputs, num_outputs, activation="relu", name=""):
 
