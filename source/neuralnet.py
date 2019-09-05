@@ -74,15 +74,14 @@ class CVAE(object):
             filter_size=[ksize, ksize, 32, 64], activation="relu", name="conv3_1")
         conv3_2 = self.conv2d(input=conv3_1, stride=1, padding='SAME', \
             filter_size=[ksize, ksize, 64, 64], activation="relu", name="conv3_2")
-        maxp3 = self.maxpool(input=conv3_2, ksize=2, strides=2, padding='SAME', name="max_pool3")
         self.conv_shapes.append(tf.shape(conv3_2))
 
         print("Dense (Fully-Connected)")
-        self.fc_shapes.append(maxp3.shape)
+        self.fc_shapes.append(conv3_2.shape)
         [n, h, w, c] = self.fc_shapes[0]
-        fulcon_in = tf.compat.v1.reshape(maxp3, shape=[-1, h*w*c], name="fulcon_in")
+        fulcon_in = tf.compat.v1.reshape(conv3_2, shape=[-1, h*w*c], name="fulcon_in")
         fulcon1 = self.fully_connected(input=fulcon_in, num_inputs=int(h*w*c), \
-            num_outputs=256, activation="relu", name="fullcon1")
+            num_outputs=512, activation="relu", name="fullcon1")
         z_mu = self.fully_connected(input=fulcon1, num_inputs=int(fulcon1.shape[1]), \
             num_outputs=self.z_dim, activation="None", name="z_mu")
         z_sigma = self.fully_connected(input=fulcon1, num_inputs=int(fulcon1.shape[1]), \
@@ -97,15 +96,14 @@ class CVAE(object):
         print("Decode-Dense")
         [n, h, w, c] = self.fc_shapes[0]
         fulcon2 = self.fully_connected(input=input, num_inputs=int(self.z_dim), \
-            num_outputs=256, activation="relu", name="fullcon2")
+            num_outputs=512, activation="relu", name="fullcon2")
         fulcon3 = self.fully_connected(input=fulcon2, num_inputs=int(fulcon2.shape[1]), \
             num_outputs=int(h*w*c), activation="relu", name="fullcon3")
         fulcon_out = tf.compat.v1.reshape(fulcon3, shape=[-1, h, w, c], name="fulcon_out")
 
         print("Decode-1")
-        convt1_1 = self.conv2d_transpose(input=fulcon_out, stride=2, padding='SAME', \
-            output_shape=self.conv_shapes[-1], filter_size=[ksize, ksize, 64, 64], \
-            dilations=[1, 1, 1, 1], activation="relu", name="convt1_1")
+        convt1_1 = self.conv2d(input=fulcon_out, stride=1, padding='SAME', \
+            filter_size=[ksize, ksize, 64, 64], activation="relu", name="convt1_1")
         convt1_2 = self.conv2d(input=convt1_1, stride=1, padding='SAME', \
             filter_size=[ksize, ksize, 64, 64], activation="relu", name="convt1_2")
 
