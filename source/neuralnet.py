@@ -12,11 +12,15 @@ class CVAE(object):
         self.x = tf.compat.v1.placeholder(tf.float32, [None, self.height, self.width, self.channel])
         self.z = tf.compat.v1.placeholder(tf.float32, [None, self.z_dim])
 
-        self.y, self.z_mu, self.z_sigma = None, None, None # will be initialized by 'build_model'
-        self.build_model(input=self.x, ksize=self.k_size)
+        self.weights, self.biasis = [], []
+        self.w_names, self.b_names = [], []
+        self.fc_shapes, self.conv_shapes = [], []
 
-        # self.restore_error = tf.reduce_sum(tf.nn.sigmoid_cross_entropy_with_logits(labels=self.x, logits=self.y), axis=(1, 2, 3))
-        self.restore_error = tf.reduce_sum(tf.square(self.x-self.y), axis=(1, 2, 3))
+        self.x_hat, self.z_mu, self.z_sigma, self.x_sample = \
+            self.build_model(input=self.x, sample=self.z, ksize=self.k_size)
+
+        # self.restore_error = tf.reduce_sum(tf.nn.sigmoid_cross_entropy_with_logits(labels=self.x, logits=self.x_hat), axis=(1, 2, 3))
+        self.restore_error = tf.reduce_sum(tf.square(self.x-self.x_hat), axis=(1, 2, 3))
 
         self.kl_divergence = 0.5 * tf.reduce_sum(tf.square(self.z_mu) + tf.square(self.z_sigma) - tf.math.log(1e-8 + tf.square(self.z_sigma)) - 1, axis=(1))
 
@@ -34,91 +38,100 @@ class CVAE(object):
         tf.compat.v1.summary.scalar('total loss', self.loss)
         self.summaries = tf.compat.v1.summary.merge_all()
 
-    def build_model(self, input, ksize=3):
+    def build_model(self, input, sample, ksize=3):
 
-        with tf.compat.v1.variable_scope("encoder"):
-            output_enc = self.encoder(input=input, ksize=ksize)
+        # with tf.compat.v1.variable_scope("encode_var"):
+        with tf.name_scope('encoder') as scope_enc:
+            z_enc, z_mu, z_sigma = self.encoder(input=input, ksize=ksize)
 
-        with tf.compat.v1.variable_scope("decoder", reuse=tf.compat.v1.AUTO_REUSE):
-            self.y = self.decoder(input=self.sample, ksize=ksize)
-        self.x_sample = self.decoder(input=self.z, ksize=ksize)
+        # with tf.compat.v1.variable_scope("decode_var", reuse=tf.compat.v1.AUTO_REUSE):
+        with tf.name_scope('decoder') as scope_enc:
+            x_hat = self.decoder(input=z_enc, ksize=ksize)
+            x_sample = self.decoder(input=sample, ksize=ksize)
+
+        return x_hat, z_mu, z_sigma, x_sample
 
     def encoder(self, input, ksize=3):
 
-        with tf.compat.v1.variable_scope("encoder", reuse=tf.compat.v1.AUTO_REUSE):
-            print("Encode-1")
-            self.conv1_1 = self.conv2d(input=input, stride=1, padding='SAME', \
-                filter_size=[ksize, ksize, 1, 16], activation="relu", name="conv1_1")
-            self.conv1_2 = self.conv2d(input=self.conv1_1, stride=1, padding='SAME', \
-                filter_size=[ksize, ksize, 16, 16], activation="relu", name="conv1_2")
-            self.maxp1 = self.maxpool(input=self.conv1_2, ksize=2, strides=2, padding='SAME', name="max_pool1")
+        # with tf.name_scope('encoder') as scope_enc:
 
-            print("Encode-2")
-            self.conv2_1 = self.conv2d(input=self.maxp1, stride=1, padding='SAME', \
-                filter_size=[ksize, ksize, 16, 32], activation="relu", name="conv2_1")
-            self.conv2_2 = self.conv2d(input=self.conv2_1, stride=1, padding='SAME', \
-                filter_size=[ksize, ksize, 32, 32], activation="relu", name="conv2_2")
-            self.maxp2 = self.maxpool(input=self.conv2_2, ksize=2, strides=2, padding='SAME', name="max_pool2")
+        print("Encode-1")
+        conv1_1 = self.conv2d(input=input, stride=1, padding='SAME', \
+            filter_size=[ksize, ksize, 1, 16], activation="relu", name="conv1_1")
+        conv1_2 = self.conv2d(input=conv1_1, stride=1, padding='SAME', \
+            filter_size=[ksize, ksize, 16, 16], activation="relu", name="conv1_2")
+        maxp1 = self.maxpool(input=conv1_2, ksize=2, strides=2, padding='SAME', name="max_pool1")
+        self.conv_shapes.append(tf.shape(conv1_2))
 
-            print("Encode-3")
-            self.conv3_1 = self.conv2d(input=self.maxp2, stride=1, padding='SAME', \
-                filter_size=[ksize, ksize, 32, 64], activation="relu", name="conv3_1")
-            self.conv3_2 = self.conv2d(input=self.conv3_1, stride=1, padding='SAME', \
-                filter_size=[ksize, ksize, 64, 64], activation="relu", name="conv3_2")
-            self.maxp3 = self.maxpool(input=self.conv3_2, ksize=2, strides=2, padding='SAME', name="max_pool3")
+        print("Encode-2")
+        conv2_1 = self.conv2d(input=maxp1, stride=1, padding='SAME', \
+            filter_size=[ksize, ksize, 16, 32], activation="relu", name="conv2_1")
+        conv2_2 = self.conv2d(input=conv2_1, stride=1, padding='SAME', \
+            filter_size=[ksize, ksize, 32, 32], activation="relu", name="conv2_2")
+        maxp2 = self.maxpool(input=conv2_2, ksize=2, strides=2, padding='SAME', name="max_pool2")
+        self.conv_shapes.append(tf.shape(conv2_2))
 
-            print("Dense (Fully-Connected)")
-            [n, h, w, c] = self.maxp3.shape
-            self.fulcon_in = tf.compat.v1.reshape(self.maxp3, shape=[-1, h*w*c], name="fulcon_in")
-            self.fulcon1 = self.fully_connected(input=self.fulcon_in, num_inputs=int(self.fulcon_in.shape[1]), \
-                num_outputs=256, activation="relu", name="fullcon1")
-            self.z_mu = self.fully_connected(input=self.fulcon1, num_inputs=int(self.fulcon1.shape[1]), \
-                num_outputs=self.z_dim, activation="None", name="z_mu")
-            self.z_sigma = self.fully_connected(input=self.fulcon1, num_inputs=int(self.fulcon1.shape[1]), \
-                num_outputs=self.z_dim, activation="None", name="z_sigma")
+        print("Encode-3")
+        conv3_1 = self.conv2d(input=maxp2, stride=1, padding='SAME', \
+            filter_size=[ksize, ksize, 32, 64], activation="relu", name="conv3_1")
+        conv3_2 = self.conv2d(input=conv3_1, stride=1, padding='SAME', \
+            filter_size=[ksize, ksize, 64, 64], activation="relu", name="conv3_2")
+        maxp3 = self.maxpool(input=conv3_2, ksize=2, strides=2, padding='SAME', name="max_pool3")
+        self.conv_shapes.append(tf.shape(conv3_2))
 
-            self.sample = self.sample_z(mu=self.z_mu, sigma=self.z_sigma)
+        print("Dense (Fully-Connected)")
+        self.fc_shapes.append(maxp3.shape)
+        [n, h, w, c] = self.fc_shapes[0]
+        fulcon_in = tf.compat.v1.reshape(maxp3, shape=[-1, h*w*c], name="fulcon_in")
+        fulcon1 = self.fully_connected(input=fulcon_in, num_inputs=int(h*w*c), \
+            num_outputs=256, activation="relu", name="fullcon1")
+        z_mu = self.fully_connected(input=fulcon1, num_inputs=int(fulcon1.shape[1]), \
+            num_outputs=self.z_dim, activation="None", name="z_mu")
+        z_sigma = self.fully_connected(input=fulcon1, num_inputs=int(fulcon1.shape[1]), \
+            num_outputs=self.z_dim, activation="None", name="z_sigma")
 
-        return self.sample
+        z_enc = self.sample_z(mu=z_mu, sigma=z_sigma) # reparameterization trick
+
+        return z_enc, z_mu, z_sigma
 
     def decoder(self, input, ksize=3):
 
-        with tf.compat.v1.variable_scope("decoder", reuse=tf.compat.v1.AUTO_REUSE):
+        # with tf.name_scope('decoder') as scope_dec:
 
-            print("Decode-Dense")
-            [n, h, w, c] = self.maxp3.shape
-            self.fulcon2 = self.fully_connected(input=input, num_inputs=int(self.sample.shape[1]), \
-                num_outputs=256, activation="relu", name="fullcon2")
-            self.fulcon3 = self.fully_connected(input=self.fulcon2, num_inputs=int(self.fulcon2.shape[1]), \
-                num_outputs=int(self.fulcon_in.shape[1]), activation="relu", name="fullcon3")
-            self.fulcon_out = tf.compat.v1.reshape(self.fulcon3, shape=[-1, h, w, c], name="fulcon_out")
+        print("Decode-Dense")
+        [n, h, w, c] = self.fc_shapes[0]
+        fulcon2 = self.fully_connected(input=input, num_inputs=int(self.z_dim), \
+            num_outputs=256, activation="relu", name="fullcon2")
+        fulcon3 = self.fully_connected(input=fulcon2, num_inputs=int(fulcon2.shape[1]), \
+            num_outputs=int(h*w*c), activation="relu", name="fullcon3")
+        fulcon_out = tf.compat.v1.reshape(fulcon3, shape=[-1, h, w, c], name="fulcon_out")
 
-            print("Decode-1")
-            self.convt1_1 = self.conv2d_transpose(input=self.fulcon_out, stride=2, padding='SAME', \
-                output_shape=tf.shape(self.conv3_2), filter_size=[ksize, ksize, 64, 64], \
-                dilations=[1, 1, 1, 1], activation="relu", name="convt1_1")
-            self.convt1_2 = self.conv2d(input=self.convt1_1, stride=1, padding='SAME', \
-                filter_size=[ksize, ksize, 64, 64], activation="relu", name="convt1_2")
+        print("Decode-1")
+        convt1_1 = self.conv2d_transpose(input=fulcon_out, stride=2, padding='SAME', \
+            output_shape=self.conv_shapes[-1], filter_size=[ksize, ksize, 64, 64], \
+            dilations=[1, 1, 1, 1], activation="relu", name="convt1_1")
+        convt1_2 = self.conv2d(input=convt1_1, stride=1, padding='SAME', \
+            filter_size=[ksize, ksize, 64, 64], activation="relu", name="convt1_2")
 
-            print("Decode-2")
-            self.convt2_1 = self.conv2d_transpose(input=self.convt1_2, stride=2, padding='SAME', \
-                output_shape=tf.shape(self.conv2_2), filter_size=[ksize, ksize, 32, 64], \
-                dilations=[1, 1, 1, 1], activation="relu", name="convt2_1")
-            self.convt2_2 = self.conv2d(input=self.convt2_1, stride=1, padding='SAME', \
-                filter_size=[ksize, ksize, 32, 32], activation="relu", name="convt2_2")
+        print("Decode-2")
+        convt2_1 = self.conv2d_transpose(input=convt1_2, stride=2, padding='SAME', \
+            output_shape=self.conv_shapes[-2], filter_size=[ksize, ksize, 32, 64], \
+            dilations=[1, 1, 1, 1], activation="relu", name="convt2_1")
+        convt2_2 = self.conv2d(input=convt2_1, stride=1, padding='SAME', \
+            filter_size=[ksize, ksize, 32, 32], activation="relu", name="convt2_2")
 
-            print("Decode-3")
-            self.convt3_1 = self.conv2d_transpose(input=self.convt2_2, stride=2, padding='SAME', \
-                output_shape=tf.shape(self.conv1_2), filter_size=[ksize, ksize, 16, 32], \
-                dilations=[1, 1, 1, 1], activation="relu", name="convt3_1")
-            self.convt3_2 = self.conv2d(input=self.convt3_1, stride=1, padding='SAME', \
-                filter_size=[ksize, ksize, 16, 16], activation="relu", name="convt3_2")
-            self.convt3_3 = self.conv2d(input=self.convt3_2, stride=1, padding='SAME', \
-                filter_size=[ksize, ksize, 16, 1], activation="None", name="convt3_3")
+        print("Decode-3")
+        convt3_1 = self.conv2d_transpose(input=convt2_2, stride=2, padding='SAME', \
+            output_shape=self.conv_shapes[-3], filter_size=[ksize, ksize, 16, 32], \
+            dilations=[1, 1, 1, 1], activation="relu", name="convt3_1")
+        convt3_2 = self.conv2d(input=convt3_1, stride=1, padding='SAME', \
+            filter_size=[ksize, ksize, 16, 16], activation="relu", name="convt3_2")
+        convt3_3 = self.conv2d(input=convt3_2, stride=1, padding='SAME', \
+            filter_size=[ksize, ksize, 16, 1], activation="None", name="convt3_3")
 
-            self.convt3_3 = tf.clip_by_value(self.convt3_3, 1e-12, 1-1e-12)
+        convt3_3 = tf.clip_by_value(convt3_3, 1e-12, 1-1e-12)
 
-        return self.convt3_3
+        return convt3_3
 
     def sample_z(self, mu, sigma):
         epsilon = tf.random.normal(tf.shape(mu), 0, 1, dtype=tf.float32)
@@ -152,10 +165,22 @@ class CVAE(object):
 
         # strides=[N, H, W, C], [1, stride, stride, 1]
         # filter_size=[ksize, ksize, num_inputs, num_outputs]
-        weight = tf.Variable(tf.random.normal(filter_size, \
-            stddev=self.he_std(in_dim=filter_size[-2])), name='%s_w' %(name))
-        bias = tf.Variable(tf.random.normal([filter_size[-1]], \
-            stddev=self.he_std(in_dim=filter_size[-2])), name='%s_b' %(name))
+        try:
+            w_idx = self.w_names.index('%s_w' %(name))
+            b_idx = self.b_names.index('%s_b' %(name))
+        except:
+            weight = tf.Variable(tf.random.normal(filter_size, \
+                stddev=self.he_std(in_dim=filter_size[-2])), name='%s_w' %(name))
+            bias = tf.Variable(tf.random.normal([filter_size[-1]], \
+                stddev=self.he_std(in_dim=filter_size[-2])), name='%s_b' %(name))
+
+            self.weights.append(weight)
+            self.biasis.append(bias)
+            self.w_names.append('%s_w' %(name))
+            self.b_names.append('%s_b' %(name))
+        else:
+            weight = self.weights[w_idx]
+            bias = self.biasis[b_idx]
 
         out_conv = tf.compat.v1.nn.conv2d(
             input=input,
@@ -180,10 +205,22 @@ class CVAE(object):
         # print(n, h, w, c)
         # strides=[N, H, W, C], [1, stride, stride, 1]
         # filter_size=[ksize, ksize, num_outputs, num_inputs]
-        weight = tf.Variable(tf.random.normal(filter_size, \
-            stddev=self.he_std(in_dim=filter_size[-1])), name='%s_w' %(name))
-        bias = tf.Variable(tf.random.normal([filter_size[-2]], \
-            stddev=self.he_std(in_dim=filter_size[-1])), name='%s_b' %(name))
+        try:
+            w_idx = self.w_names.index('%s_w' %(name))
+            b_idx = self.b_names.index('%s_b' %(name))
+        except:
+            weight = tf.Variable(tf.random.normal(filter_size, \
+                stddev=self.he_std(in_dim=filter_size[-1])), name='%s_w' %(name))
+            bias = tf.Variable(tf.random.normal([filter_size[-2]], \
+                stddev=self.he_std(in_dim=filter_size[-1])), name='%s_b' %(name))
+
+            self.weights.append(weight)
+            self.biasis.append(bias)
+            self.w_names.append('%s_w' %(name))
+            self.b_names.append('%s_b' %(name))
+        else:
+            weight = self.weights[w_idx]
+            bias = self.biasis[b_idx]
 
         out_conv = tf.compat.v1.nn.conv2d_transpose(
             value=input,
@@ -202,10 +239,22 @@ class CVAE(object):
 
     def fully_connected(self, input, num_inputs, num_outputs, activation="relu", name=""):
 
-        weight = tf.Variable(tf.random.normal([num_inputs, num_outputs], \
-            stddev=self.he_std(in_dim=num_inputs)), name='%s_w' %(name))
-        bias = tf.Variable(tf.random.normal([num_outputs], \
-            stddev=self.he_std(in_dim=num_inputs)), name='%s_b' %(name))
+        try:
+            w_idx = self.w_names.index('%s_w' %(name))
+            b_idx = self.b_names.index('%s_b' %(name))
+        except:
+            weight = tf.Variable(tf.random.normal([num_inputs, num_outputs], \
+                stddev=self.he_std(in_dim=num_inputs)), name='%s_w' %(name))
+            bias = tf.Variable(tf.random.normal([num_outputs], \
+                stddev=self.he_std(in_dim=num_inputs)), name='%s_b' %(name))
+
+            self.weights.append(weight)
+            self.biasis.append(bias)
+            self.w_names.append('%s_w' %(name))
+            self.b_names.append('%s_b' %(name))
+        else:
+            weight = self.weights[w_idx]
+            bias = self.biasis[b_idx]
 
         out_mul = tf.compat.v1.matmul(input, weight, name='%s_mul' %(name))
         out_bias = tf.math.add(out_mul, bias, name='%s_add' %(name))
