@@ -29,6 +29,7 @@ class Dataset(object):
         self.width = x_sample.shape[1]
         try: self.channel = x_sample.shape[2]
         except: self.channel = 1
+
         self.min_val, self.max_val = x_sample.min(), x_sample.max()
         self.num_class = (y_te.max()+1)
 
@@ -41,7 +42,7 @@ class Dataset(object):
 
     def reset_idx(self): self.idx_tr, self.idx_te = 0, 0
 
-    def next_train(self, batch_size=1):
+    def next_train(self, batch_size=1, fix=False):
 
         start, end = self.idx_tr, self.idx_tr+batch_size
         x_tr, y_tr = self.x_tr[start:end], self.y_tr[start:end]
@@ -55,8 +56,14 @@ class Dataset(object):
             self.x_tr, self.y_tr = shuffle(self.x_tr, self.y_tr)
         else: self.idx_tr = end
 
-        if(x_tr.shape[0] != batch_size): return None, None, terminator
-        else: return x_tr, y_tr, terminator
+        if(fix): self.idx_tr = start
+
+        if(x_tr.shape[0] != batch_size):
+            x_tr, y_tr = self.x_tr[-1-batch_size:-1], self.y_tr[-1-batch_size:-1]
+            x_tr = np.expand_dims(x_tr, axis=3)
+            x_tr = (x_tr + 1e-12) / self.max_val
+
+        return x_tr, y_tr, terminator
 
     def next_test(self, batch_size=1):
 
