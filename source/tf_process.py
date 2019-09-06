@@ -130,6 +130,7 @@ def training(sess, saver, neuralnet, dataset, epochs, batch_size, normalize=True
 
         print("Epoch [%d / %d] (%d iteration)  Restore:%.3f, KLD:%.3f, Total:%.3f" \
             %(epoch, epochs, iteration, restore, kld, loss))
+        saver.save(sess, PACK_PATH+"/Checkpoint/model_checker")
         summary_writer.add_run_metadata(run_metadata, 'epoch-%d' % epoch)
 
 def test(sess, saver, neuralnet, dataset, batch_size):
