@@ -17,7 +17,7 @@ class CVAE(object):
         self.w_names, self.b_names = [], []
         self.fc_shapes, self.conv_shapes = [], []
 
-        self.z_mu, self.z_sigma, self.x_hat, self.x_sample = \
+        self.z_enc, self.z_mu, self.z_sigma, self.x_hat, self.x_sample = \
             self.build_model(input=self.x, random_z=self.z, ksize=self.k_size)
 
         self.restore_error = -tf.reduce_sum(self.x * tf.math.log(self.x_hat + 1e-12) + (1 - self.x) * tf.math.log(1 - self.x_hat + 1e-12), axis=(1, 2, 3))
@@ -46,7 +46,7 @@ class CVAE(object):
             x_hat = self.decoder(input=z_enc, ksize=ksize)
             x_sample = self.decoder(input=random_z, ksize=ksize)
 
-        return z_mu, z_sigma, x_hat, x_sample
+        return z_enc, z_mu, z_sigma, x_hat, x_sample
 
     def encoder(self, input, ksize=3):
 
