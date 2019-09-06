@@ -73,7 +73,7 @@ class Dataset(object):
         x_te = (x_te + 1e-12) / self.max_val
 
         terminator = False
-        if(end >= self.idx_te):
+        if(end >= self.num_te):
             terminator = True
             self.idx_te = 0
         else: self.idx_te = end
