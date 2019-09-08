@@ -16,7 +16,7 @@ Implementation of CVAE
 </div>
 
 <div align="center">
-  <img src="./figures/latent.png" width="300"><img src="./figures/latent_walk.png" width="230">  
+  <img src="./figures/latent.png" width="300"><img src="./figures/latent_walk.png" width="250">  
   <p>Latent vector space, and reconstruction result of latent space walking.</p>
 </div>
 
