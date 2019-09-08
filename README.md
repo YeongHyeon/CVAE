@@ -5,8 +5,19 @@ Implementation of CVAE
 
 ## Graph in TensorBoard
 <div align="center">
-  <img src="./figures/graph.png" width="700">  
-  <p>Reconstructed image in each iteration.</p>
+  <img src="./figures/graph.png" width="800">  
+  <p>Graph of CVAE.</p>
+</div>
+
+## Results
+<div align="center">
+  <img src="./figures/restoring.png" width="800">  
+  <p>Restoration result by CVAE.</p>
+</div>
+
+<div align="center">
+  <img src="./figures/latent.png" width="300"><img src="./figures/latent_walk.png" width="300">  
+  <p>Latent vector space, and reconstruction result of latent space walking.</p>
 </div>
 
 ## Environment

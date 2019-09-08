@@ -136,10 +136,50 @@ def training(sess, saver, neuralnet, dataset, epochs, batch_size, normalize=True
 def test(sess, saver, neuralnet, dataset, batch_size):
 
     if(os.path.exists(PACK_PATH+"/Checkpoint/model_checker.index")):
+        print("\nRestoring parameters")
         saver.restore(sess, PACK_PATH+"/Checkpoint/model_checker")
 
     print("\nTest...")
 
+    make_dir(path="test")
+    result_list = ["inbound", "outbound"]
+    for result_name in result_list: make_dir(path=os.path.join("test", result_name))
+
+    loss_list = []
     while(True):
         x_te, y_te, terminator = dataset.next_test(batch_size) # y_te does not used in this prj.
+        loss = sess.run(neuralnet.loss, \
+            feed_dict={neuralnet.x:x_te, neuralnet.batch_size:x_te.shape[0]})
+        loss_list.append(loss)
+
+        if(terminator): break
+
+    loss_list = np.asarray(loss_list)
+    loss_avg, loss_std = np.average(loss_list), np.std(loss_list)
+    outbound = loss_avg + (loss_std * 1.5)
+    print("Loss  avg: %.3f, std: %.3f" %(loss_avg, loss_std))
+    print("Outlier boundary: %.3f" %(outbound))
+
+    fcsv = open("test-summary.csv", "w")
+    fcsv.write("class, loss, outlier\n")
+    testnum = 0
+    while(True):
+        x_te, y_te, terminator = dataset.next_test(1) # y_te does not used in this prj.
+
+        x_restore, loss = sess.run([neuralnet.x_hat, neuralnet.loss], \
+            feed_dict={neuralnet.x:x_te, neuralnet.batch_size:x_te.shape[0]})
+
+        outcheck = loss > outbound
+        fcsv.write("%d, %.3f, %r\n" %(y_te, loss, outcheck))
+
+        canvas = np.ones((x_te[0].shape[0], x_te[0].shape[1]*2, x_te[0].shape[2]), np.float32)
+        canvas[:, :x_te[0].shape[1], :] = x_te[0]
+        canvas[:, x_te[0].shape[1]:, :] = x_restore[0]
+        if(outcheck):
+            plt.imsave(os.path.join("test", "outbound", "%08d.png" %(testnum)), gray2rgb(gray=canvas))
+        else:
+            plt.imsave(os.path.join("test", "inbound", "%08d.png" %(testnum)), gray2rgb(gray=canvas))
+
+        testnum += 1
+
         if(terminator): break
