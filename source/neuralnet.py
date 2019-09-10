@@ -20,7 +20,7 @@ class CVAE(object):
         self.z_enc, self.z_mu, self.z_sigma, self.x_hat, self.x_sample = \
             self.build_model(input=self.x, random_z=self.z, ksize=self.k_size)
 
-        self.restore_error = -tf.reduce_sum(self.x * tf.math.log(self.x_hat + 1e-12) + (1 - self.x) * tf.math.log(1 - self.x_hat + 1e-12), axis=(1, 2, 3))
+        self.restore_error = -tf.reduce_sum(self.x * tf.math.log(self.x_hat + 1e-12) + (1 - self.x) * tf.math.log(1 - self.x_hat + 1e-12), axis=(1, 2, 3)) # binary cross-entropy
         self.kl_divergence = 0.5 * tf.reduce_sum(tf.square(self.z_mu) + tf.square(self.z_sigma) - tf.math.log(tf.square(self.z_sigma) + 1e-12) - 1, axis=(1))
 
         self.mean_restore = tf.reduce_mean(self.restore_error)
