@@ -3,6 +3,12 @@ Convolutional Variational Auto-Encoder (CVAE)
 
 Implementation of CVAE
 
+## Architecture
+<div align="center">
+  <img src="./figures/vae.png" width="400">  
+  <p>Simplified VAE architecture.</p>
+</div>
+
 ## Graph in TensorBoard
 <div align="center">
   <img src="./figures/graph.png" width="800">  
