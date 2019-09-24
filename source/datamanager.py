@@ -47,7 +47,6 @@ class Dataset(object):
         start, end = self.idx_tr, self.idx_tr+batch_size
         x_tr, y_tr = self.x_tr[start:end], self.y_tr[start:end]
         x_tr = np.expand_dims(x_tr, axis=3)
-        x_tr = (x_tr + 1e-12) / self.max_val
 
         terminator = False
         if(end >= self.num_tr):
@@ -61,7 +60,10 @@ class Dataset(object):
         if(x_tr.shape[0] != batch_size):
             x_tr, y_tr = self.x_tr[-1-batch_size:-1], self.y_tr[-1-batch_size:-1]
             x_tr = np.expand_dims(x_tr, axis=3)
-            x_tr = (x_tr + 1e-12) / self.max_val
+
+        if(self.normalize):
+            min_x, max_x = x_tr.min(), x_tr.max()
+            x_tr = (x_tr - min_x) / (max_x - min_x)
 
         return x_tr, y_tr, terminator
 
@@ -70,12 +72,15 @@ class Dataset(object):
         start, end = self.idx_te, self.idx_te+batch_size
         x_te, y_te = self.x_te[start:end], self.y_te[start:end]
         x_te = np.expand_dims(x_te, axis=3)
-        x_te = (x_te + 1e-12) / self.max_val
 
         terminator = False
         if(end >= self.num_te):
             terminator = True
             self.idx_te = 0
         else: self.idx_te = end
+
+        if(self.normalize):
+            min_x, max_x = x_te.min(), x_te.max()
+            x_te = (x_te - min_x) / (max_x - min_x)
 
         return x_te, y_te, terminator
