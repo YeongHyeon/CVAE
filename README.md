@@ -1,7 +1,7 @@
 Convolutional Variational Auto-Encoder (CVAE)
 =====
 
-Implementation of CVAE
+Implementation of Convolutional Variational Auto-Encoder (CVAE)
 
 ## Architecture
 <div align="center">
